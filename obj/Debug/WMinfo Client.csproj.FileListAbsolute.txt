@@ -1,0 +1,17 @@
+C:\Users\Eduarda\source\repos\WMinfo Client\WMinfo Client\bin\Debug\WMinfo Client.exe.config
+C:\Users\Eduarda\source\repos\WMinfo Client\WMinfo Client\bin\Debug\WMinfo Client.exe
+C:\Users\Eduarda\source\repos\WMinfo Client\WMinfo Client\bin\Debug\WMinfo Client.pdb
+C:\Users\Eduarda\source\repos\WMinfo Client\WMinfo Client\bin\Debug\OpenHardwareMonitorLib.dll
+C:\Users\Eduarda\source\repos\WMinfo Client\WMinfo Client\obj\Debug\WMinfo Client.csprojAssemblyReference.cache
+C:\Users\Eduarda\source\repos\WMinfo Client\WMinfo Client\obj\Debug\WMinfo Client.csproj.CoreCompileInputs.cache
+C:\Users\Eduarda\source\repos\WMinfo Client\WMinfo Client\obj\Debug\WMinfo Client.csproj.CopyComplete
+C:\Users\Eduarda\source\repos\WMinfo Client\WMinfo Client\obj\Debug\WMinfo Client.exe
+C:\Users\Eduarda\source\repos\WMinfo Client\WMinfo Client\obj\Debug\WMinfo Client.pdb
+C:\Users\Breno Almeida\Downloads\WMinfo_Client_1.2b\WMinfo Client\WMinfo Client\bin\Debug\WMinfo Client.exe.config
+C:\Users\Breno Almeida\Downloads\WMinfo_Client_1.2b\WMinfo Client\WMinfo Client\bin\Debug\WMinfo Client.exe
+C:\Users\Breno Almeida\Downloads\WMinfo_Client_1.2b\WMinfo Client\WMinfo Client\bin\Debug\WMinfo Client.pdb
+C:\Users\Breno Almeida\Downloads\WMinfo_Client_1.2b\WMinfo Client\WMinfo Client\obj\Debug\WMinfo Client.csprojAssemblyReference.cache
+C:\Users\Breno Almeida\Downloads\WMinfo_Client_1.2b\WMinfo Client\WMinfo Client\obj\Debug\WMinfo Client.csproj.CoreCompileInputs.cache
+C:\Users\Breno Almeida\Downloads\WMinfo_Client_1.2b\WMinfo Client\WMinfo Client\obj\Debug\WMinfo Client.csproj.CopyComplete
+C:\Users\Breno Almeida\Downloads\WMinfo_Client_1.2b\WMinfo Client\WMinfo Client\obj\Debug\WMinfo Client.exe
+C:\Users\Breno Almeida\Downloads\WMinfo_Client_1.2b\WMinfo Client\WMinfo Client\obj\Debug\WMinfo Client.pdb

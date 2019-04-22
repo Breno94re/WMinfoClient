@@ -1,7 +1,13 @@
 ﻿using System;
 using OpenHardwareMonitor.Hardware;
 using System.Threading;
+using System.IO;
 using System.Net;
+using System.Net.NetworkInformation;
+using System.Diagnostics;
+using System.Management;
+using WMinfo_Client;
+using System.Threading.Tasks;
 
 #region Project INFO ##### READ-ME ######
 
@@ -21,30 +27,60 @@ using System.Net;
 #endregion
 
 #region Devs Info
-/* - Version - 1.3 Beta -
+/* - Version - 1.4.1 Beta -
  * - Type: Client  -
- * - Last Updated at: 03/04/2019 (DD/MM/YYYY) -
+ * - Last Updated at: 20/04/2019 (DD/MM/YYYY) -
  * 
  * 
  * - ######## What's New ######### -
- *  
- *  - Fixed the problem with CPU frequency not updating
- *  - Universal code for any core quantities
- *  - Added Global Support for Intel processors
- *  - Added Global Support for Nvidia GPU's
- *  - Added GetCpuInfo Method's wich brings a string HttpAPI Ready
  * 
+ *   - Added New class "Remote Console", this class is responsible for making possible the remote console usage.
+ *   the user now can execute commands and receive feedback output in real time. 
+ *   Commands that are implemented and funcional: Netstat(all of variants),Chkdsk, tasklist, taskill, ipconfig and run(program).
+ *   - Added New class "RemoteTaskView", this class is responsible for exibition of all processes with resources uses like task manager on windows. 
+ *   The user can manipulate all of them, with possibiltity of termination of an existing process or execution of new processes. 
+ *   it's in the plans to add some graphics supports aswell, with network info and processor usage.
+ *   
  * - ######## What's New ######### -
  * 
  * 
  * - ######## Bugs to fix ######### -
  * 
- * - HDD POH and PCC are not picking up correctly since last patch. Need to re-work how info is splited.
  * 
  * - ######## Bugs to fix ######### -
  * 
  * 
  * - ######## Last Changes ######### -
+ * 
+ *     -----------1.4b-------------
+ *     
+ *  - Fixed the problem with CPU frequency not updating
+ *  - Universal code for any core quantities
+ *  - Added Global Support for Intel processors
+ *  - Added Global Support for Nvidia GPU's
+ *  - Added GetCpuInfo Method's wich brings a string HttpAPI Ready
+ *  - Added GetGpuInfo Method's wich brings a string HttpAPI Ready
+ *  - Added GetHDDInfo Method's wich brings a string HttpAPI Ready
+ *  - Added Ping with MS returned
+ *  - Fixed HDD's reading bug
+ *     
+ *     -----------1.4b-------------
+ * 
+ * 
+ * 
+ *     -----------1.3b-------------
+ *     
+ *  - Fixed the problem with CPU frequency not updating
+ *  - Universal code for any core quantities
+ *  - Added Global Support for Intel processors
+ *  - Added Global Support for Nvidia GPU's
+ *  - Added GetCpuInfo Method's wich brings a string HttpAPI Ready
+ *  - Added GetGpuInfo Method's wich brings a string HttpAPI Ready
+ *  - Added GetHDDInfo Method's wich brings a string HttpAPI Ready
+ *  - Added Ping with MS returned
+ *  - Fixed HDD's reading bug
+ *     
+ *     -----------1.3b-------------
  * 
  *     -----------1.2b-------------
  *     
@@ -81,7 +117,10 @@ namespace HWinfoClient
     {
         #region Global Var's
         public static Computer myComputer = new Computer();
-        public static string[] processorinfo;
+        public static string[] globalinfo;
+        public static double up;
+        public static string down;
+        public static bool consoleworking = false;
         #endregion
 
         #region MAIN
@@ -108,470 +147,172 @@ namespace HWinfoClient
             myComputer.HDDEnabled = true; //HDD info's bool
             myComputer.Open();
             #endregion
-            
+
+
             while (1 < 2)
             {
-                Thread.Sleep(1000);
-                Console.Clear();
-                string info = "";
-                info = myComputer.GetReport(); // Report from DDL, here we going to pick up HDD and GPU info.
-                processorinfo = info.Split('\n'); //Split the Report in Lines, to make the reading easier.
-
-                #region CPU GET Method()
-
-                //comments//
-                #region Comentários PT-BR
-                /* Esse Método está retornando um grupo de informação, dividido por '*' nessa ordem: nome*cores*clocks*temps*load
-                 * Cada grupo tem conteúdo. O conteúdo dos grupos está dividido por '%'
-                 * Esse método irá tornar mais fácil trabaçhar com métodos http.
-                 */
-                #endregion
-
-                #region EN-US Comments
-                /* This Method is returning groups of info, divided by '*' in that order: name*cores*clocks*temps*load
-                 * Each group has content, their content is divided by '%'
-                 * This method will make easier to work with http methods.
-                 */
-                #endregion
-                //comments//
-
-
-                string[] CPUchunks = GetCpuInfo().Split('*'); //Calling GetCpuInfo() Method, wich return a group of information on a string format.
-
-                for (int i = 0; i < CPUchunks.Length; i++)
-                    Console.WriteLine(CPUchunks[i]);
-
-                #endregion
-
-                #region GPU
-
-                #region NVIDIA
-
-                #region Comentários PT-BR
-                /* Esse chunk é responsável por obter: Informações da GPU, como temperatura, clocks, load e fan
-                 */
-                #endregion
-
-                #region EN-US Comments
-                /* This chunk is responsible for getting: GPU info, like: Temps, Clocks, load level and fan level.
-                */
-                #endregion
-
-                string temp1 = ""; // Temperatures Cº
-                string Load1 = ""; // Load %
-                string clock1 = ""; // Clock total
-                string fan1 = ""; // Fan %
-
-                foreach (var hardwareItem in myComputer.Hardware)
-                {
-
-                    if (hardwareItem.HardwareType == HardwareType.GpuNvidia)
-                    {
-                        hardwareItem.Update();
-                        foreach (IHardware subHardware in hardwareItem.SubHardware)
-                            subHardware.Update();
-
-                        foreach (var sensor in hardwareItem.Sensors)
-                        {
-                            if (sensor.SensorType == SensorType.Temperature)
-                            {
-                                temp1 += String.Format("{0} Temperature = {1}\r\n", sensor.Name, sensor.Value.HasValue ? sensor.Value.Value.ToString() : "null");
-                            }
-                            if (sensor.SensorType == SensorType.Load)
-                            {
-                                Load1 += String.Format("{0} Load = {1}\r\n", sensor.Name, sensor.Value.HasValue ? sensor.Value.Value.ToString() : "null");
-                            }
-                            if (sensor.SensorType == SensorType.Clock)
-                            {
-                                clock1 += String.Format("{0} Clock = {1}\r\n", sensor.Name, sensor.Value.HasValue ? sensor.Value.Value.ToString() : "null");
-                            }
-                            if (sensor.SensorType == SensorType.Fan)
-                            {
-                                fan1 += String.Format("{0} Fan = {1}\r\n", sensor.Name, sensor.Value.HasValue ? sensor.Value.Value.ToString() : "null");
-                            }
-                        }
-                    }
-                }
-
-                Console.WriteLine("{0}\n{1}\n{2}\n{3}", clock1, temp1, Load1, fan1);
-
-                #endregion
-
-                #endregion
-
-                #region HDD
-
-
-
-                //HDD//
-                //método para achar o HDD
-                int count = 0;
-                string hddtemps = "";
-                string hddgeneralinfo = "";
-                string hdddrivename = "";
-                string hddpoh = "";
-                string hddpcc = "";
-                int size = 0;
-                string[] splithdd = info.Split('\n'); // divide por quebras de linha
-
-                for (int i = 0; i < splithdd.Length; i++)
-                {
-                    //Informações Gerais//
-                    if (splithdd[i].Contains("Logical drive name:") == true)
-                    {
-                        string hddtest = ""; //string para armazenamento temporário
-                        bool test = false; //bool que fará avaliação do hdd
-
-                        for (int l = i; l < splithdd.Length; l++)
-                        {
-                            string[] splithdds = splithdd[i + count].Split(':');
-
-                            if (count == 2)
-                            {
-                                char[] counterino = splithdds[1].ToCharArray();
-
-                                if (counterino.Length < 13) //verifica se o hdd é real ou é uma partição do sistema
-                                    test = false;
-                                if (counterino.Length >= 13) //verifica se o hdd é real ou é uma partição do sistema
-                                    test = true;
-                            }
-
-                            if (count == 3)
-                            {
-                                hddtest += splithdds[1] + "%" + "\n&";
-                                count = 0;
-                                break;
-                            }
-
-                            hddtest += splithdds[1] + "%" + "\n";
-                            count++;
-                        }
-
-                        if (test == true)
-                            hddgeneralinfo += hddtest;
-                    }
-                    //Informações Gerais//
-
-                    //Informações de temperatura//
-                    if (splithdd[i].Contains("C2 Temperature") == true)
-                    {
-                        size++;
-                        string[] stringtemp = splithdd[i].Replace('\n', ' ').Split(' ');
-
-                        if (stringtemp.Length == 43)
-                            hddtemps += stringtemp[27] + "*" + stringtemp[36] + "%";
-
-                        if (stringtemp.Length == 44)
-                            hddtemps += stringtemp[27] + "*" + stringtemp[37] + "%";
-
-                        if (stringtemp.Length == 45)
-                            hddtemps += stringtemp[27] + "*" + stringtemp[38] + "%";
-
-                        if (stringtemp.Length == 46)
-                            hddtemps += stringtemp[27] + "*" + stringtemp[39] + "%";
-
-                        if (stringtemp.Length == 47)
-                            hddtemps += stringtemp[27] + "*" + stringtemp[40] + "%";
-
-                        if (stringtemp.Length == 48)
-                            hddtemps += stringtemp[27] + "*" + stringtemp[41] + "%";
-
-                        if (stringtemp.Length == 49)
-                            hddtemps += stringtemp[27] + "*" + stringtemp[42] + "%";
-
-                        if (stringtemp.Length == 50)
-                            hddtemps += stringtemp[27] + "*" + stringtemp[43] + "%";
-                    }
-                    //Informações de temperatura//
-
-                    //informações de POH//
-                    if (splithdd[i].Contains("09 Power-On Hours (POH)") == true)
-                    {
-
-                        string[] pohtemp = splithdd[i].Replace('\n', ' ').Split(' ');
-
-                        if (pohtemp.Length == 34 || pohtemp.Length == 35 || pohtemp.Length == 36)
-                        {
-                            if (pohtemp[31] != String.Empty)
-                                hddpoh += pohtemp[31] + "%";
-
-                            if (pohtemp[32] != String.Empty)
-                                hddpoh += pohtemp[32] + "%";
-
-                            if (pohtemp[33] != String.Empty)
-                                hddpoh += pohtemp[33] + "%";
-
-                            if (pohtemp[34] != String.Empty)
-                                hddpoh += pohtemp[34] + "%";
-
-
-                        }
-
-                        if (pohtemp.Length == 36 || pohtemp.Length == 37)
-                        {
-                            if (pohtemp[31] != String.Empty)
-                                hddpoh += pohtemp[31] + "%";
-
-                            if (pohtemp[32] != String.Empty)
-                                hddpoh += pohtemp[32] + "%";
-
-                            if (pohtemp[33] != String.Empty)
-                                hddpoh += pohtemp[33] + "%";
-
-                            if (pohtemp[34] != String.Empty)
-                                hddpoh += pohtemp[34] + "%";
-
-                            if (pohtemp[35] != String.Empty)
-                                hddpoh += pohtemp[35] + "%";
-
-                            if (pohtemp[36] != String.Empty)
-                                hddpoh += pohtemp[36] + "%";
-                        }
-
-
-
-
-                    }
-
-                    if (splithdd[i].Contains("Power Cycle Count") == true)
-                    {
-                        string[] pcctemp = splithdd[i].Replace('\n', ' ').Split(' ');
-
-                        if (pcctemp.Length == 37 || pcctemp.Length == 38 || pcctemp.Length == 39 || pcctemp.Length == 40 || pcctemp.Length == 41 || pcctemp.Length == 42)
-                        {
-                            if (pcctemp[31] != String.Empty)
-                                hddpcc += pcctemp[31] + "%";
-
-                            if (pcctemp[32] != String.Empty)
-                                hddpcc += pcctemp[32] + "%";
-
-                            if (pcctemp[33] != String.Empty)
-                                hddpcc += pcctemp[33] + "%";
-
-                            if (pcctemp[34] != String.Empty)
-                                hddpcc += pcctemp[34] + "%";
-
-                            if (pcctemp[35] != String.Empty)
-                                hddpcc += pcctemp[35] + "%";
-
-                            if (pcctemp[36] != String.Empty)
-                                hddpcc += pcctemp[36] + "%";
-
-                            if (pcctemp[37] != String.Empty)
-                                hddpcc += pcctemp[37] + "%";
-                        }
-
-                    }
-                    //informações de POH//
-
-
-                    //Nome específico do driver//
-                    if (splithdd[i].Contains("Drive name:") == true)
-                    {
-                        string[] splithddnames = splithdd[i].Split(':');
-                        hdddrivename += splithddnames[1] + "%" + "\n";
-                    }
-                    //Nome específico do driver//
-                }
-
-                string[] splitinfos = hddgeneralinfo.Split('&'); //divide as informações gerais;
-                string[] hddfinalname = hdddrivename.Split('%'); //divide os nomes dos hdds;
-                string[] splittempsfinal = hddtemps.Split('%'); //divide as de Temperatura;
-                string[] splitpohfinal = hddpoh.Split('%'); //divide o POH;
-                string[] splitpccfinal = hddpcc.Split('%'); //divide o PCC;
-
-                string hdd1 = "";
-                string hdd2 = "";
-                string hdd3 = "";
-                string hdd4 = "";
-                string hdd5 = "";
-
-                Console.WriteLine("");
-
-
-                if (size == 1) //1 hdds
-                {
-                    //Nessa zona de código, eu escrevo todo o filtro que foi feito antes. A função Replace é usada 2 vezes em cadeia, para eliminar o line break e espaços em branco.
-
-                    string[] hdd1split = splitinfos[0].Split('%');  //divisão final da infogeral hdd1
-
-                    string[] hdd1tempsplit = splittempsfinal[0].Split('*');  //divisão final da temperatura hdd1
-
-
-                    //hdd1
-                    hdd1 = "Nome do HDD:" + hddfinalname[0] + "\nNome do Driver:" + hdd1split[0] + ":/" + "\nFormato do Driver: " + hdd1split[1].Replace('\n', ' ').Replace(" ", String.Empty)
-                        + "\nEspaço Total: " + hdd1split[2].Replace('\n', ' ').Replace(" ", String.Empty) + "\nEspaço Livre: " + hdd1split[3].Replace('\n', ' ').Replace(" ", String.Empty)
-                        + "\nPior Temperatura: " + hdd1tempsplit[0] + "ºC" + " Temperatura Atual: " + hdd1tempsplit[1] + "ºC" + "\nTempo Ligado(POH): " + splitpohfinal[0] + " Horas"
-                        + "\nCiclos ON/OFF(PCC): " + splitpccfinal[0] + " Vezes";//infos
-                    //hdd1
-
-                    Console.WriteLine(hdd1);
-                    Console.WriteLine("");
-
-                }
-
-                if (size == 2) //2 hdds
-                {
-                    //Nessa zona de código, eu escrevo todo o filtro que foi feito antes. A função Replace é usada 2 vezes em cadeia, para eliminar o line break e espaços em branco.
-
-                    string[] hdd1split = splitinfos[0].Split('%');  //divisão final da infogeral hdd1
-                    string[] hdd1split2 = splitinfos[1].Split('%'); //divisão final da infogeral hdd2
-
-                    string[] hdd1tempsplit = splittempsfinal[0].Split('*');  //divisão final da temperatura hdd1
-                    string[] hdd1tempsplit2 = splittempsfinal[1].Split('*'); //divisão final da temperatura hdd2
-
-
-                    //hdd1
-                    hdd1 = "Nome do HDD:" + hddfinalname[0] + "\nNome do Driver:" + hdd1split[0] + ":/" + "\nFormato do Driver: " + hdd1split[1].Replace('\n', ' ').Replace(" ", String.Empty)
-                        + "\nEspaço Total: " + hdd1split[2].Replace('\n', ' ').Replace(" ", String.Empty) + "\nEspaço Livre: " + hdd1split[3].Replace('\n', ' ').Replace(" ", String.Empty)
-                        + "\nPior Temperatura: " + hdd1tempsplit[0] + "ºC" + " Temperatura Atual: " + hdd1tempsplit[1] + "ºC" + "\nTempo Ligado(POH): " + splitpohfinal[0] + " Horas"
-                        + "\nCiclos ON/OFF(PCC): " + splitpccfinal[0] + " Vezes";//infos
-                    //hdd1
-
-                    //hdd2
-                    hdd2 = "Nome do HDD: " + hddfinalname[1].Replace('\n', ' ').Replace(" ", String.Empty) + "\nNome do Driver:" + hdd1split2[0] + ":/" + "\nFormato do Driver: " + hdd1split2[1].Replace('\n', ' ').Replace(" ", String.Empty)
-                        + "\nEspaço Total: " + hdd1split2[2].Replace('\n', ' ').Replace(" ", String.Empty) + "\nEspaço Livre: " + hdd1split2[3].Replace('\n', ' ').Replace(" ", String.Empty)
-                        + "\nPior Temperatura: " + hdd1tempsplit2[0] + "ºC" + " Temperatura Atual: " + hdd1tempsplit2[1] + "ºC" + "\nTempo Ligado(POH): " + splitpohfinal[1] + " Horas"
-                        + "\nCiclos ON/OFF(PCC): " + splitpccfinal[1] + " Vezes";//infos
-                                                                                 //hdd2
-
-                    Console.WriteLine(hdd1);
-                    Console.WriteLine("");
-                    Console.WriteLine(hdd2);
-                    Console.WriteLine("");
-
-                }
-
-                if (size == 3) //3 hdds
-                {
-                    //Nessa zona de código, eu escrevo todo o filtro que foi feito antes. A função Replace é usada 2 vezes em cadeia, para eliminar o line break e espaços em branco.
-
-                    string[] hdd1split = splitinfos[0].Split('%');  //divisão final da infogeral hdd1
-                    string[] hdd1split2 = splitinfos[1].Split('%'); //divisão final da infogeral hdd2
-                    string[] hdd1split3 = splitinfos[2].Split('%'); //divisão final da infogeral hdd3
-
-                    string[] hdd1tempsplit = splittempsfinal[0].Split('*');  //divisão final da temperatura hdd1
-                    string[] hdd1tempsplit2 = splittempsfinal[1].Split('*'); //divisão final da temperatura hdd2
-                    string[] hdd1tempsplit3 = splittempsfinal[2].Split('*'); //divisão final da temperatura hdd3
-
-                    //hdd1
-                    hdd1 = "Nome do HDD:" + hddfinalname[0] + "\nNome do Driver:" + hdd1split[0] + ":/" + "\nFormato do Driver: " + hdd1split[1].Replace('\n', ' ').Replace(" ", String.Empty)
-                        + "\nEspaço Total: " + hdd1split[2].Replace('\n', ' ').Replace(" ", String.Empty) + "\nEspaço Livre: " + hdd1split[3].Replace('\n', ' ').Replace(" ", String.Empty)
-                        + "\nPior Temperatura: " + hdd1tempsplit[0] + "ºC" + " Temperatura Atual: " + hdd1tempsplit[1] + "ºC" + "\nTempo Ligado(POH): " + splitpohfinal[0] + " Horas"
-                        + "\nCiclos ON/OFF(PCC): " + splitpccfinal[0] + " Vezes";//infos
-                    //hdd1
-
-                    //hdd2
-                    hdd2 = "Nome do HDD: " + hddfinalname[1].Replace('\n', ' ').Replace(" ", String.Empty) + "\nNome do Driver:" + hdd1split2[0] + ":/" + "\nFormato do Driver: " + hdd1split2[1].Replace('\n', ' ').Replace(" ", String.Empty)
-                        + "\nEspaço Total: " + hdd1split2[2].Replace('\n', ' ').Replace(" ", String.Empty) + "\nEspaço Livre: " + hdd1split2[3].Replace('\n', ' ').Replace(" ", String.Empty)
-                        + "\nPior Temperatura: " + hdd1tempsplit2[0] + "ºC" + " Temperatura Atual: " + hdd1tempsplit2[1] + "ºC" + "\nTempo Ligado(POH): " + splitpohfinal[1] + " Horas"
-                        + "\nCiclos ON/OFF(PCC): " + splitpccfinal[1] + " Vezes";//infos
-                    //hdd2
-
-                    //hdd3
-                    hdd3 = "Nome do HDD: " + hddfinalname[2].Replace('\n', ' ').Replace(" ", String.Empty) + "\nNome do Driver:" + hdd1split3[0] + ":/" + "\nFormato do Driver: " + hdd1split3[1].Replace('\n', ' ').Replace(" ", String.Empty)
-                        + "\nEspaço Total: " + hdd1split3[2].Replace('\n', ' ').Replace(" ", String.Empty) + "\nEspaço Livre: " + hdd1split3[3].Replace('\n', ' ').Replace(" ", String.Empty)
-                        + "\nPior Temperatura: " + hdd1tempsplit3[0] + "ºC" + " Temperatura Atual: " + hdd1tempsplit3[1] + "ºC" + "\nTempo Ligado(POH): " + splitpohfinal[2] + " Horas"
-                        + "\nCiclos ON/OFF(PCC): " + splitpccfinal[2] + " Vezes";//infos
-
-                    Console.WriteLine(hdd1);
-                    Console.WriteLine("");
-                    Console.WriteLine(hdd2);
-                    Console.WriteLine("");
-                    Console.WriteLine(hdd3);
-
-                }
-
-
-                //HDD//
-                #endregion
-
-                #region RAM
-
-                //RAM//
-                Console.WriteLine("");
-                string memtConverted = "";
-                string memdConverted = "";
-                ulong memt = GetTotalMemoryInBytes(); //Valores da RAM Total
-                ulong memd = GetavailabeMemoryInBytes();//Valores da RAM Disponível
-                char[] memtc = Convert.ToString(memt).ToCharArray();
-                char[] memtd = Convert.ToString(memd).ToCharArray();
-                if (memtc.Length == 10) //<= 9gbderam
-                {
-                    memtConverted = Convert.ToString(memtc[0]) + "."  //Essa variável Organiza a Quantidade de Ram em um Valor mais amigável
-                        + Convert.ToString(memtc[1]) + Convert.ToString(memtc[2])
-                        + Convert.ToString(memtc[3]) + "." + Convert.ToString(memtc[4])
-                        + Convert.ToString(memtc[5]) + Convert.ToString(memtc[6]);
-                    Console.WriteLine("Memória Total: {0} MB", memtConverted); //Exibe os valores da RAM TOTAL
-
-                    if (memtd.Length == 10)
-                    {
-                        memdConverted = Convert.ToString(memtd[0]) + "." //Essa variável Organiza a Quantidade de Ram em um Valor mais amigável
-                       + Convert.ToString(memtd[1]) + Convert.ToString(memtd[2])
-                       + Convert.ToString(memtd[3]) + "." + Convert.ToString(memtd[4])
-                       + Convert.ToString(memtd[5]) + Convert.ToString(memtd[6]);
-                    }
-                    if (memtd.Length == 9)
-                    {
-                        memdConverted = Convert.ToString(memtd[0])//Essa variável Organiza a Quantidade de Ram em um Valor mais amigável
-                       + Convert.ToString(memtd[1]) + Convert.ToString(memtd[2]) + "."
-                       + Convert.ToString(memtd[3]) + Convert.ToString(memtd[4])
-                       + Convert.ToString(memtd[5]);
-                    }
-                    Console.WriteLine("Memória Disponível: {0} MB", memdConverted);//Exibe os valores da RAM DISPONÍVEL
-                }
-
-                if (memtc.Length == 11) //<=99gbderam
-                {
-                    memtConverted = Convert.ToString(memtc[0]) +  //Essa variável Organiza a Quantidade de Ram em um Valor mais amigável
-                         Convert.ToString(memtc[1]) + "." + Convert.ToString(memtc[2])
-                        + Convert.ToString(memtc[3]) + Convert.ToString(memtc[4]) + "."
-                        + Convert.ToString(memtc[5]) + Convert.ToString(memtc[6]) + Convert.ToString(memtc[7]);
-                    Console.WriteLine("Memória Total: {0} MB", memtConverted); //Exibe os valores da RAM TOTAL
-
-
-                    if (memtd.Length == 9) //< que 1 gb de ram
-                    {
-                        memdConverted = Convert.ToString(memtd[0])//Essa variável Organiza a Quantidade de Ram em um Valor mais amigável
-                       + Convert.ToString(memtd[1]) + Convert.ToString(memtd[2]) + "."
-                       + Convert.ToString(memtd[3]) + Convert.ToString(memtd[4])
-                       + Convert.ToString(memtd[5]);
-                    }
-
-                    if (memtd.Length == 10) //<=9gbderam
-                    {
-                        memdConverted = Convert.ToString(memtd[0]) + "." //Essa variável Organiza a Quantidade de Ram em um Valor mais amigável
-                        + Convert.ToString(memtd[1]) + Convert.ToString(memtd[2])
-                       + Convert.ToString(memtd[3]) + "." + Convert.ToString(memtd[4])
-                       + Convert.ToString(memtd[5]) + Convert.ToString(memtd[6]);
-                        Console.WriteLine("Memória Disponível: {0} MB", memdConverted);//Exibe os valores da RAM DISPONÍVEL
-                    }
-
-                    if (memtd.Length == 11) //<=99gbderam
-                    {
-                        memdConverted = Convert.ToString(memtd[0]) +  //Essa variável Organiza a Quantidade de Ram em um Valor mais amigável
-                         Convert.ToString(memtd[1]) + "." + Convert.ToString(memtd[2])
-                        + Convert.ToString(memtd[3]) + Convert.ToString(memtd[4]) + "."
-                        + Convert.ToString(memtd[5]) + Convert.ToString(memtd[6]) + Convert.ToString(memtd[7]);
-                        Console.WriteLine("Memória Disponível: {0} MB", memdConverted);//Exibe os valores da RAM DISPONÍVEL
-                    }
-
-
-
-                }
-                //RAM
-
-                #endregion
-
-                #region HTTP API CODE
-                //enviohttp
-                /*
                 try
                 {
-                    HttpWebRequest request = WebRequest.Create("http://10.169.0.175:8080/"+"?"+bus+"%"+core0+"%" + core1 + "%" + core2 + "%" + core3 + "%" + memt + "%" + memd) as HttpWebRequest;
-                    HttpWebResponse response = request.GetResponse() as HttpWebResponse;
+                    Console.Clear();
+                    string info = "";
+                    info = myComputer.GetReport(); // Report from DDL, here we going to pick up HDD info.
+                    globalinfo = info.Split('\n'); //Split the Report in Lines, to make the reading easier.
+
+                    #region CPU GET Method()
+
+                    //comments//
+                    #region Comentários PT-BR
+                    /* Esse Método está retornando um grupo de informação, dividido por '*' nessa ordem: nome*cores*clocks*temps*load
+                     * Cada grupo tem conteúdo. O conteúdo dos grupos está dividido por '%'
+                     * Esse método irá tornar mais fácil trabaçhar com métodos http.
+                     */
+                    #endregion
+
+                    #region EN-US Comments
+                    /* This Method is returning groups of info, divided by '*' in that order: name*cores*clocks*temps*load
+                     * Each group has content, their content is divided by '%'
+                     * This method will make easier to work with http methods.
+                     */
+                    #endregion
+                    //comments//
+                    Console.WriteLine("Getting CPU");
+                    string CPUINFO = "";
+                    CPUINFO = GetCpuInfo();//Calling GetCpuInfo() Method, wich return a group of information on a string format.
+                    Console.WriteLine("CPU OK!");
+                    #endregion
+
+                    #region GPU GET Method()
+
+                    //comments//
+                    #region Comentários PT-BR
+                    /* Esse Método está retornando um grupo de informação, dividido por '/' nessa ordem: nome,MSclock,coretemp,coreload,fan
+                     * Cada grupo tem conteúdo. O conteúdo dos grupos está dividido por '&'
+                     * Esse método irá tornar mais fácil trabaçhar com métodos http.
+                     */
+                    #endregion
+
+                    #region EN-US Comments
+                    /* This Method is returning groups of info, divided by '/' in that order: name,MSclock,coretemp,coreload,fan
+                     * Each group has content, their content is divided by '&'
+                     * This method will make easier to work with http methods.
+                     */
+                    #endregion
+                    //comments//
+
+                    string GPUINFO = "";
+                    Console.WriteLine("Getting GPU");
+                    GPUINFO = GetGpuInfo();  //Calling GetGpuInfo() Method, wich return a group of information on a string format.
+                    Console.WriteLine("GPU OK!");
+                    #endregion
+
+                    #region HDD GET Method()
+
+                    //comments//
+                    #region Comentários PT-BR
+                    /* Esse Método está retornando um grupo de informação, dividido por '/' nessa ordem: nome,drivername,driverformat,totalspace,emptyspace,worsttemp,actualtemp,power on hours(POH),power Cycle Count(PCC)
+                     * Cada grupo tem conteúdo. O conteúdo dos grupos está dividido por '&'
+                     * Esse método irá tornar mais fácil trabaçhar com métodos http.
+                     */
+                    #endregion
+
+                    #region EN-US Comments
+                    /* This Method is returning groups of info, divided by '/' in that order: name,drivername,driverformat,totalspace,emptyspace,worsttemp,actualtemp,power on hours(POH),power Cycle Count(PCC)
+                     * Each group has content, their content is divided by '&'
+                     * This method will make easier to work with http methods.
+                     */
+                    #endregion
+                    //comments//
+
+                    Console.WriteLine("Getting HDD");
+                    string HDDINFO = "";
+                    HDDINFO = GetHddInfo();
+                    Console.WriteLine("HDD OK!");
+
+                    #endregion
+
+                    #region RAM
+
+                    //comments//
+                    #region Comentários PT-BR
+                    /* Esse Método está retornando um grupo de informação, dividido por '/' nessa ordem: Ram Total, Ram disponível
+                     * Cada grupo tem conteúdo. O conteúdo dos grupos está dividido por '&'
+                     * Esse método irá tornar mais fácil trabaçhar com métodos http.
+                     */
+                    #endregion
+
+                    #region EN-US Comments
+                    /* This Method is returning groups of info, divided by '/' in that order: Total Ram, Availabe Ram
+                     * Each group has content, their content is divided by '&'
+                     * This method will make easier to work with http methods.
+                     */
+                    #endregion
+                    //comments//
+                    Console.WriteLine("Getting RAM");
+                    string RAMINFO = "";
+                    RAMINFO = GetRamInfo();
+                    Console.WriteLine("RAM OK!");
+                    #endregion
+
+                    #region Ping Get Method()
+
+                    //comments//
+                    #region Comentários PT-BR
+                    /* esse método está retornado o delay de ping em mili-segundos, baseado em um ping client-server .
+                     * 
+                     */
+                    #endregion
+
+                    #region EN-US Comments
+                    /* this method is getting the ping delay, based on a client-server ping.
+                     */
+                    #endregion
+                    //comments//
+
+                    Console.WriteLine("Pinging!");
+                    string PINGINFO = "";
+                    PINGINFO = GetPingMs();
+                    Console.WriteLine("Sucess!, Ping: {0}ms", PINGINFO);
+
+                    #endregion
+
+                    #region Get NetWorkStatistics Method()
+                    string NETWORKINFO = "";
+                    NETWORKINFO = GetNetworkInfo();
+                    #endregion
+
+                    #region MOBO Get Method()
+
+                    string MOBOINFO = "";
+                    MOBOINFO = GetMoboInfo();
+
+                    #endregion
+
+                    #region HTTP API CODE
+                    //enviohttp
+
+
+
+                    HttpWebRequest request = WebRequest.Create("http://192.168.15.10:8080/" + "?" + CPUINFO + "$" + GPUINFO + "$" + HDDINFO + "$" + RAMINFO + "$" + PINGINFO + "$" + NETWORKINFO + "$" + MOBOINFO) as HttpWebRequest;
+                    var response = (HttpWebResponse)request.GetResponse();
+                    var responseString = new StreamReader(response.GetResponseStream()).ReadToEnd();
+
                     Console.WriteLine("Dados Enviados com sucesso");
-                    //optional
+                    Console.WriteLine("Resposta do servidor: {0}", responseString);
+
+                    if (responseString.Contains("Console"))
+                    {
+                        string[] command = responseString.Split('*');
+                        RemoteConsole console = new RemoteConsole();
+                        console.command = command[1];
+                        Task.Run (()=>console.ConsoleWork());
+                    }
+
+                    if (responseString.Contains("TaskView"))
+                    {
+                        RemoteTaskViewer task = new RemoteTaskViewer();
+                        task.RTVWORK();
+                    }
+
                 }
                 catch (SystemException e)
                 {
@@ -583,16 +324,92 @@ namespace HWinfoClient
                     {
                         Console.WriteLine("Não foi possível conectar ao servidor");
                     }
-                    
+
                 }
                 //enviohttp
-                */
+
                 #endregion
 
-                
             }
             
         }
+        #endregion
+
+        #region NetWork Method's
+
+        static string GetNetworkInfo()
+        {
+            System.Net.NetworkInformation.NetworkInterface[] nics;
+            nics = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces();
+            PerformanceCounterCategory performanceCounterCategory = new PerformanceCounterCategory("Network Interface");
+            string instance = "";
+
+
+            foreach (var nic in nics)
+            {
+                if (nic.NetworkInterfaceType != NetworkInterfaceType.Wireless80211 && nic.NetworkInterfaceType != NetworkInterfaceType.Ethernet)
+                    continue;
+                if (nic.OperationalStatus.ToString().ToUpper() != "DOWN")
+                {
+                    Console.WriteLine("Adapter name: " + nic.Name);
+                    Console.WriteLine("Link speed: " + nic.Speed);
+                    Console.WriteLine("State: " + nic.OperationalStatus);
+                    instance = nic.Description;
+                }
+            }
+
+            while (true)
+            {
+                PerformanceCounter kek = new PerformanceCounter("Network Interface", "Bytes Received/sec", instance);
+                PerformanceCounter kek1 = new PerformanceCounter("Network Interface", "Bytes Sent/sec", instance);
+                double down = 0;
+                double up = 0;
+                string dspeed = "";
+                string uspeed = "";
+                string netspeed = "";
+                kek.NextValue();
+                kek1.NextValue();
+                for (int i = 0; i < 10; i++)
+                {
+                    float number = (kek.NextValue() / 1024);
+                    float number1 = (kek1.NextValue() / 1024);
+                    down += Math.Round(number);
+                    up += Math.Round(number1);
+                    Thread.Sleep(300);
+                }
+
+                double download = down / 10;
+                double upload = up / 10;
+
+                if (download > 1000)
+                {
+                    download = Math.Round(download / 1000, 2);
+                    dspeed = download + "-Mbs";
+                }
+                else
+                {
+                    download = Math.Round(download);
+                    dspeed = download + "-Kpbs";
+                }
+
+                if (upload > 1000)
+                {
+                    upload = Math.Round(upload / 1000,2);
+                    uspeed = upload + "-Mbs";
+                }
+                else
+                {
+                   upload = Math.Round(upload);
+                   uspeed = upload + "-Kbps";
+                }
+
+                netspeed = dspeed.Replace(",", "&") + "/" + uspeed.Replace(",", "&");
+                return netspeed;
+                
+            }
+
+        }
+
         #endregion
 
         #region Memory Method (Visual Basic)
@@ -606,9 +423,207 @@ namespace HWinfoClient
         }
         #endregion
 
+        #region MOBO Method's
+
+        private static ManagementObjectSearcher baseboardSearcher = new ManagementObjectSearcher("root\\CIMV2", "SELECT * FROM Win32_BaseBoard");
+        private static ManagementObjectSearcher motherboardSearcher = new ManagementObjectSearcher("root\\CIMV2", "SELECT * FROM Win32_MotherboardDevice");
+
+
+        static public string GetMoboInfo()
+        {
+            string info = "";
+
+            info  = Manufacturer.Replace(" ", "&").Replace(".", String.Empty) + "/" + Product.Replace(" ", "&").Replace(".", String.Empty) + "/" + SerialNumber.Replace(" ", "&").Replace(".", String.Empty) + "/" + SystemName.Replace(" ", "&").Replace(".", String.Empty) + "/" + Version.Replace(" ", "&").Replace(".", String.Empty);
+
+            return info;
+        }
+
+
+
+        static public string Manufacturer
+        {
+            get
+            {
+                try
+                {
+                    foreach (ManagementObject queryObj in baseboardSearcher.Get())
+                    {
+                        return queryObj["Manufacturer"].ToString();
+                    }
+                    return "";
+                }
+                catch (Exception e)
+                {
+                    return "";
+                }
+            }
+        }
+
+        static public string Product
+        {
+            get
+            {
+                try
+                {
+                    foreach (ManagementObject queryObj in baseboardSearcher.Get())
+                    {
+                        return queryObj["Product"].ToString();
+                    }
+                    return "";
+                }
+                catch (Exception e)
+                {
+                    return "";
+                }
+            }
+        }
+
+
+        static public string SerialNumber
+        {
+            get
+            {
+                try
+                {
+                    foreach (ManagementObject queryObj in baseboardSearcher.Get())
+                    {
+                        return queryObj["SerialNumber"].ToString();
+                    }
+                    return "";
+                }
+                catch (Exception e)
+                {
+                    return "";
+                }
+            }
+        }
+
+        static public string SystemName
+        {
+            get
+            {
+                try
+                {
+                    foreach (ManagementObject queryObj in motherboardSearcher.Get())
+                    {
+                        return queryObj["SystemName"].ToString();
+                    }
+                    return "";
+                }
+                catch (Exception e)
+                {
+                    return "";
+                }
+            }
+        }
+
+        static public string Version
+        {
+            get
+            {
+                try
+                {
+                    foreach (ManagementObject queryObj in baseboardSearcher.Get())
+                    {
+                        return queryObj["Version"].ToString();
+                    }
+                    return "";
+                }
+                catch (Exception e)
+                {
+                    return "";
+                }
+            }
+        }
+
+
+        #endregion
+
+        #region RAM Method's
+
+        static string GetRamInfo()
+        {
+            string memtotal = "";
+            string memtConverted = "";
+            string memdConverted = "";
+            ulong memt = GetTotalMemoryInBytes(); //Valores da RAM Total
+            ulong memd = GetavailabeMemoryInBytes();//Valores da RAM Disponível
+            char[] memtc = Convert.ToString(memt).ToCharArray();
+            char[] memtd = Convert.ToString(memd).ToCharArray();
+            if (memtc.Length == 10) //<= 9gbderam
+            {
+                memtConverted = Convert.ToString(memtc[0]) + "&"  //Essa variável Organiza a Quantidade de Ram em um Valor mais amigável
+                    + Convert.ToString(memtc[1]) + Convert.ToString(memtc[2])
+                    + Convert.ToString(memtc[3]) + "&" + Convert.ToString(memtc[4])
+                    + Convert.ToString(memtc[5]) + Convert.ToString(memtc[6]);
+
+
+                if (memtd.Length == 10)
+                {
+                    memdConverted = Convert.ToString(memtd[0]) + "&" //Essa variável Organiza a Quantidade de Ram em um Valor mais amigável
+                   + Convert.ToString(memtd[1]) + Convert.ToString(memtd[2])
+                   + Convert.ToString(memtd[3]) + "&" + Convert.ToString(memtd[4])
+                   + Convert.ToString(memtd[5]) + Convert.ToString(memtd[6]);
+                }
+                if (memtd.Length == 9)
+                {
+                    memdConverted = Convert.ToString(memtd[0])//Essa variável Organiza a Quantidade de Ram em um Valor mais amigável
+                   + Convert.ToString(memtd[1]) + Convert.ToString(memtd[2]) + "&"
+                   + Convert.ToString(memtd[3]) + Convert.ToString(memtd[4])
+                   + Convert.ToString(memtd[5]);
+                }
+
+                memtotal = memtConverted + "/" + memdConverted;
+            }
+
+            if (memtc.Length == 11) //<=99gbderam
+            {
+                memtConverted = Convert.ToString(memtc[0]) +  //Essa variável Organiza a Quantidade de Ram em um Valor mais amigável
+                     Convert.ToString(memtc[1]) + "&" + Convert.ToString(memtc[2])
+                    + Convert.ToString(memtc[3]) + Convert.ToString(memtc[4]) + "&"
+                    + Convert.ToString(memtc[5]) + Convert.ToString(memtc[6]) + Convert.ToString(memtc[7]);
+                
+
+
+                if (memtd.Length == 9) //< que 1 gb de ram
+                {
+                    memdConverted = Convert.ToString(memtd[0])//Essa variável Organiza a Quantidade de Ram em um Valor mais amigável
+                   + Convert.ToString(memtd[1]) + Convert.ToString(memtd[2]) + "&"
+                   + Convert.ToString(memtd[3]) + Convert.ToString(memtd[4])
+                   + Convert.ToString(memtd[5]);
+                }
+
+                if (memtd.Length == 10) //<=9gbderam
+                {
+                    memdConverted = Convert.ToString(memtd[0]) + "&" //Essa variável Organiza a Quantidade de Ram em um Valor mais amigável
+                    + Convert.ToString(memtd[1]) + Convert.ToString(memtd[2])
+                   + Convert.ToString(memtd[3]) + "&" + Convert.ToString(memtd[4])
+                   + Convert.ToString(memtd[5]) + Convert.ToString(memtd[6]);
+                   
+                }
+
+                if (memtd.Length == 11) //<=99gbderam
+                {
+                    memdConverted = Convert.ToString(memtd[0]) +  //Essa variável Organiza a Quantidade de Ram em um Valor mais amigável
+                     Convert.ToString(memtd[1]) + "&" + Convert.ToString(memtd[2])
+                    + Convert.ToString(memtd[3]) + Convert.ToString(memtd[4]) + "&"
+                    + Convert.ToString(memtd[5]) + Convert.ToString(memtd[6]) + Convert.ToString(memtd[7]);
+                    
+                }
+
+                memtotal = memtConverted + "/" + memdConverted;
+
+            }
+
+            return memtotal;
+        }
+
+        #endregion
+
         #region CPU Method's
         static string GetCpuInfo()
         {
+
             #region CPU
             //comments//
             #region Comentários PT-BR
@@ -663,7 +678,7 @@ namespace HWinfoClient
                 if (divisor[i] != ' ')
                     modelocpu += divisor[i];
                 else
-                    modelocpu += "%";
+                    modelocpu += "&";
             }
 
             if (modelocpu.Contains("Intel") == true)//verifies brand
@@ -675,12 +690,12 @@ namespace HWinfoClient
                 amd = true;
             }
 
-            for (int i = 0; i < processorinfo.Length; i++)//Picks up the core count number.
+            for (int i = 0; i < globalinfo.Length; i++)//Picks up the core count number.
             {
                 //Nº of Cores//
-                if (processorinfo[i].Contains("Number of Cores:") == true) //Contains method to find any desired info
+                if (globalinfo[i].Contains("Number of Cores:") == true) //Contains method to find any desired info
                 {
-                    string[] cpucorestemp = processorinfo[i].Split(':');
+                    string[] cpucorestemp = globalinfo[i].Split(':');
                     cores = Convert.ToInt32(cpucorestemp[1].Replace(" ", String.Empty));
                 }
                 //Nº of Cores//
@@ -717,34 +732,37 @@ namespace HWinfoClient
 
                     if (hardwareItem.HardwareType == HardwareType.CPU)
                     {
+                        
                         hardwareItem.Update();
                         foreach (IHardware subHardware in hardwareItem.SubHardware)
                             subHardware.Update();
 
                         foreach (var sensor in hardwareItem.Sensors)
                         {
+
+                            
                             if (sensor.SensorType == SensorType.Temperature)
                             {
-                                temp += String.Format("{0}%", sensor.Value.HasValue ? sensor.Value.Value.ToString() : "null");
+                                temp += String.Format("{0}&", sensor.Value.HasValue ? sensor.Value.Value.ToString() : "null");
                             }
                             if (sensor.SensorType == SensorType.Load)
                             {
                                 if (sensor.Value.HasValue == true)
-                                    Load += String.Format("{0}%", Math.Round(Convert.ToDouble(sensor.Value)));
+                                    Load += String.Format("{0}&", Math.Round(Convert.ToDouble(sensor.Value)));
                                 else
                                     Load += "null";
                             }
                             if (sensor.SensorType == SensorType.Clock)
                             {
                                 if (sensor.Value.HasValue == true)
-                                    clock += String.Format("{0}%", Math.Round(Convert.ToDouble(sensor.Value)));
+                                    clock += String.Format("{0}&", Math.Round(Convert.ToDouble(sensor.Value)));
                                 else
                                     clock += "null";
                             }
                         }
                     }
                 }
-                cpupackinfo =  modelocpu + "*" + cores + "*" + clock + "*" + temp + "*" + Load ; //Each group is separated by '*' separator. Wich group content is separated by '' separator.
+                cpupackinfo =  modelocpu + "/" + cores + "/" + clock + "/" + temp + "/" + Load ; //Each group is separated by '*' separator. Wich group content is separated by '' separator.
                 #endregion
 
             }
@@ -761,8 +779,517 @@ namespace HWinfoClient
 
             return cpupackinfo;
             #endregion
+
         }
         #endregion
 
+        #region GPU Method's
+        static string GetGpuInfo()
+        {
+            #region GPU
+
+            #region GPU Model'n Brand
+
+            #region Comentários PT-BR
+            /* Esse chunk é responsável por obter o Modelo da GPU
+             */
+            #endregion
+
+            #region EN-US Comments
+            /* This chunk is responsible for getting Gpu Models and Brand.
+            */
+            #endregion
+
+            bool nvidia = false;
+            bool amd = false;
+            string models = "";
+            foreach (var hardwareItem in myComputer.Hardware)
+            {
+                if (hardwareItem.HardwareType == HardwareType.GpuNvidia)
+                {
+                    if (hardwareItem.Name.ToLower().Contains("nvidia"))
+                        nvidia = true;
+                    else
+                        amd = true;
+                    models = hardwareItem.Name;
+
+                }
+            }
+
+            char[] divisor = models.ToCharArray();
+
+            models = "";
+
+            for (int i = 0; i < divisor.Length; i++)//method to remove any blank char's and replace them with '%' divisor
+            {
+                if (divisor[i] != ' ')
+                    models += divisor[i];
+                else
+                    models += "&";
+            }
+            #endregion
+
+            #region NVIDIA
+
+            string gpupackinfo = "";
+            string name = "";
+            name = models;
+            string Coretemp = ""; // Core Temperatures Cº &
+            string CoreLoad = ""; // Core Load &
+            string MSclock = ""; // Memory and Shader Clock &
+            string fan = ""; // Fan &
+
+            if (nvidia == true)
+            {
+                #region Comentários PT-BR
+                /* Esse chunk é responsável por obter: Informações da GPU, como temperatura, clocks, load e fan
+                 */
+                #endregion
+
+                #region EN-US Comments
+                /* This chunk is responsible for getting: GPU info, like: Temps, Clocks, load level and fan level.
+                */
+                #endregion
+
+                
+
+                foreach (var hardwareItem in myComputer.Hardware)
+                {
+
+                    if (hardwareItem.HardwareType == HardwareType.GpuNvidia)
+                    {
+                        hardwareItem.Update();
+                        foreach (IHardware subHardware in hardwareItem.SubHardware)
+                            subHardware.Update();
+
+                        foreach (var sensor in hardwareItem.Sensors)
+                        {
+                            if (sensor.SensorType == SensorType.Temperature)
+                            {
+                                Coretemp += String.Format("{0}", sensor.Value.HasValue ? sensor.Value.Value.ToString() : "null");
+                            }
+                            if (sensor.SensorType == SensorType.Load)
+                            {
+                                if (sensor.Value.HasValue == true)
+                                    CoreLoad += String.Format("{0}&", Math.Round(Convert.ToDouble(sensor.Value)));
+                                else
+                                    CoreLoad += "null";
+                            }
+                            if (sensor.SensorType == SensorType.Clock)
+                            {
+                                if (sensor.Value.HasValue == true)
+                                    MSclock += String.Format("{0}&", Math.Round(Convert.ToDouble(sensor.Value)));
+                                else
+                                    MSclock += "null";
+                            }
+                            if (sensor.SensorType == SensorType.Fan)
+                            {
+                                if (sensor.Value.HasValue == true)
+                                    fan += String.Format("{0}", Math.Round(Convert.ToDouble(sensor.Value)));
+                                else
+                                    fan += "null";
+                            }
+                        }
+
+                    }
+                }
+
+               
+            }
+
+            return gpupackinfo = name + "/" + MSclock + "/" + Coretemp + "/" + CoreLoad + "/" + fan; 
+
+            #endregion
+
+            #endregion
+
+        }
+        #endregion
+
+        #region HDD Method's
+
+        static string GetHddInfo()
+        {
+
+            #region HDD
+
+            #region HDD Gerenal Info
+
+            //comments//
+            #region Comentários PT-BR
+            /* Esse chunk e responsável por pegar toda as informações do HDD
+             * É necessário que o código se adapte de acordo com qualquer hardware
+             * Toda informação precisa de separadores, para que facilite o trabalho da API de se comunicar com o servidor.
+             */
+            #endregion
+
+            #region EN-US Comments
+            /* - This chunk is responsible to get all HDD info -
+             * - It's necessary that the code adapts itself under any hardware circustances -
+             * - All the info need to be filtered with separators, to ease the API work on sending those to the server -
+             */
+            #endregion
+            //comments//
+
+            int count = 0;
+            string hddtemps = "";
+            string hddgeneralinfo = "";
+            string hdddrivename = "";
+            string hddpoh = "";
+            string hddpcc = "";
+            int size = 0;
+
+            for (int i = 0; i < globalinfo.Length; i++)
+            {
+
+                #region General Info
+
+                //comments//
+                #region Comentários PT-BR
+                /* Esse chunk e responsável por pegar toda as informações básicas do HDD e filtrar unidades fantasmas e partições
+                 */
+                #endregion
+
+                #region EN-US Comments
+                /* - This chunk is responsible to get all HDD info,filter partitions and non-physical false-positive Hdd's
+                 */
+                #endregion
+                //comments//
+
+                if (globalinfo[i].Contains("Logical drive name:") == true)
+                {
+                    string hddtest = ""; //string para armazenamento temporário
+                    bool test = false; //bool que fará avaliação do hdd
+
+                    for (int l = i; l < globalinfo.Length; l++)
+                    {
+                        string[] globalinfos = globalinfo[i + count].Split(':');
+
+                        if (count == 2)
+                        {
+                            char[] counterino = globalinfos[1].ToCharArray();
+
+                            if (counterino.Length < 13) //verifica se o hdd é real ou é uma partição do sistema
+                                test = false;
+                            if (counterino.Length >= 13) //verifica se o hdd é real ou é uma partição do sistema
+                                test = true;
+                        }
+
+                        if (count == 3)
+                        {
+                            hddtest += globalinfos[1] + "%" + "\n&";
+                            count = 0;
+                            break;
+                        }
+
+                        hddtest += globalinfos[1] + "%" + "\n";
+                        count++;
+                    }
+
+                    if (test == true)
+                        hddgeneralinfo += hddtest;
+                }
+                #endregion
+
+                #region Temperatures
+
+
+
+                if (globalinfo[i].Contains("C2 Temperature") == true)
+                {
+                    size++;
+                    string[] stringtemp = globalinfo[i].Replace('\n', ' ').Split(' ');
+
+                    if (stringtemp.Length == 43)
+                        hddtemps += stringtemp[27] + "*" + stringtemp[36] + "%";
+                    if (stringtemp.Length == 44)
+                        hddtemps += stringtemp[27] + "*" + stringtemp[37] + "%";
+                    if (stringtemp.Length == 45)
+                        hddtemps += stringtemp[27] + "*" + stringtemp[38] + "%";
+                    if (stringtemp.Length == 46)
+                        hddtemps += stringtemp[27] + "*" + stringtemp[39] + "%";
+                    if (stringtemp.Length == 47)
+                        hddtemps += stringtemp[27] + "*" + stringtemp[40] + "%";
+                    if (stringtemp.Length == 48)
+                        hddtemps += stringtemp[27] + "*" + stringtemp[41] + "%";
+                    if (stringtemp.Length == 49)
+                        hddtemps += stringtemp[27] + "*" + stringtemp[42] + "%";
+                    if (stringtemp.Length == 50)
+                        hddtemps += stringtemp[27] + "*" + stringtemp[43] + "%";
+                }
+
+
+                #endregion
+
+                #region Power-On Hours(POH)
+
+                if (globalinfo[i].Contains("Power-On Hours (POH)") == true)
+                {
+                    string[] pohtemp = globalinfo[i].Replace('\n', ' ').Split(' ');
+
+                    if (pohtemp.Length == 35)
+                        hddpoh += pohtemp[31] + "%";
+
+                    if (pohtemp.Length == 36)
+                        hddpoh += pohtemp[32] + "%";
+
+                    if (pohtemp.Length == 38)
+                        hddpoh += pohtemp[33] + "%";
+
+                    if (pohtemp.Length == 37)
+                        hddpoh += pohtemp[33] + "%";
+
+                }
+                #endregion
+
+                #region Power Cycle-Count (PCC)
+                if (globalinfo[i].Contains("Power Cycle Count") == true)
+                {
+                    string[] pcctemp = globalinfo[i].Replace('\n', ' ').Split(' ');
+
+                    if (pcctemp.Length == 39)
+                        hddpcc += pcctemp[34] + "%";
+
+                    if (pcctemp.Length == 40)
+                        hddpcc += pcctemp[35] + "%";
+
+                    if (pcctemp.Length == 41)
+                        hddpcc += pcctemp[36] + "%";
+
+
+                }
+                #endregion
+
+                #region FullDriveName
+
+                if (globalinfo[i].Contains("Drive name:") == true)
+                {
+                    string[] splithddnames = globalinfo[i].Split(':');
+                    hdddrivename += splithddnames[1] + "%" + "\n";
+                }
+                #endregion
+
+            }
+
+            #endregion
+
+            #region Info Organization and Variables
+            string[] splitinfos = hddgeneralinfo.Split('&'); //divide as informações gerais;
+            string[] hddfinalname = hdddrivename.Split('%'); //divide os nomes dos hdds;
+            string[] splittempsfinal = hddtemps.Split('%'); //divide as de Temperatura;
+            string[] splitpohfinal = hddpoh.Split('%'); //divide o POH;
+            string[] splitpccfinal = hddpcc.Split('%'); //divide o PCC;
+
+            string hdd1 = "";
+            string hdd2 = "";
+            string hdd3 = "";
+            string hdd4 = "";
+            string hdd5 = "";
+            string hddfinal = "";
+
+
+            //Nessa zona de código, eu escrevo todo o filtro que foi feito antes. A função Replace é usada 2 vezes em cadeia, para eliminar o line break e espaços em branco.
+            if (size == 1)
+            {
+                string[] hdd1split = splitinfos[0].Split('%');  //divisão final da infogeral hdd1
+
+                string[] hdd1tempsplit = splittempsfinal[0].Split('*');  //divisão final da temperatura hdd1
+
+                #region HDD1
+                string[] hdd1a = new string[9];
+
+                hdd1a[0] = hddfinalname[0].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//HDD Name
+                hdd1a[1] = hdd1split[0].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty); //DriveName
+                hdd1a[2] = hdd1split[1].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//DriveFormat
+                hdd1a[3] = hdd1split[2].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//TotalSpace
+                hdd1a[4] = hdd1split[3].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//EmptySpace
+                hdd1a[5] = hdd1tempsplit[0];//WorstTemp
+                hdd1a[6] = hdd1tempsplit[1];//ActualTemp
+                hdd1a[7] = splitpohfinal[0];//Power on Hours (POH)
+                hdd1a[8] = splitpccfinal[0];//Power Cycle Count (PCC)
+
+                for (int i = 0; i < hdd1a.Length; i++)
+                {
+                    if (i < 8)
+                        hdd1 += hdd1a[i] + "&";
+                    if (i == 8)
+                        hdd1 += hdd1a[i];
+                }
+                #endregion
+
+                hddfinal = hdd1;
+            }
+
+
+            if (size == 2) //2 hdds
+            {
+                //Nessa zona de código, eu escrevo todo o filtro que foi feito antes. A função Replace é usada 2 vezes em cadeia, para eliminar o line break e espaços em branco.
+
+                string[] hdd1split = splitinfos[0].Split('%');  //divisão final da infogeral hdd1
+                string[] hdd1split2 = splitinfos[1].Split('%'); //divisão final da infogeral hdd2
+
+                string[] hdd1tempsplit = splittempsfinal[0].Split('*');  //divisão final da temperatura hdd1
+                string[] hdd1tempsplit2 = splittempsfinal[1].Split('*'); //divisão final da temperatura hdd2
+
+                #region HDD1
+                string[] hdd1a = new string[9];
+                //
+                hdd1a[0] = hddfinalname[0].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//HDD Name
+                hdd1a[1] = hdd1split[0].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty); //DriveName
+                hdd1a[2] = hdd1split[1].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//DriveFormat
+                hdd1a[3] = hdd1split[2].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//TotalSpace
+                hdd1a[4] = hdd1split[3].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//EmptySpace
+                hdd1a[5] = hdd1tempsplit[0];//WorstTemp
+                hdd1a[6] = hdd1tempsplit[1];//ActualTemp
+                hdd1a[7] = splitpohfinal[0];//Power on Hours (POH)
+                hdd1a[8] = splitpccfinal[0];//Power Cycle Count (PCC)
+
+                for (int i = 0; i < hdd1a.Length; i++)
+                {
+                    if (i < 8)
+                        hdd1 += hdd1a[i] + "&";
+                    if (i == 8)
+                        hdd1 += hdd1a[i];
+                }
+                #endregion
+
+                #region HDD2
+                string[] hdd2a = new string[9];
+
+                hdd2a[0] = hddfinalname[1].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//HDD Name
+                hdd2a[1] = hdd1split2[0].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty); //DriveName
+                hdd2a[2] = hdd1split2[1].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//DriveFormat
+                hdd2a[3] = hdd1split2[2].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//TotalSpace
+                hdd2a[4] = hdd1split2[3].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//EmptySpace
+                hdd2a[5] = hdd1tempsplit2[0];//WorstTemp
+                hdd2a[6] = hdd1tempsplit2[1];//ActualTemp
+                hdd2a[7] = splitpohfinal[1];//Power on Hours (POH)
+                hdd2a[8] = splitpccfinal[1];//Power Cycle Count (PCC)
+
+                for (int i = 0; i < hdd2a.Length; i++)
+                {
+                    if (i < 8)
+                        hdd2 += hdd2a[i] + "&";
+                    if (i == 8)
+                        hdd2 += hdd2a[i];
+                }
+                #endregion
+
+                hddfinal = hdd1 + "/" + hdd2;
+            }
+
+            if (size == 3) //3 hdds
+            {
+                //Nessa zona de código, eu escrevo todo o filtro que foi feito antes. A função Replace é usada 2 vezes em cadeia, para eliminar o line break e espaços em branco.
+
+                string[] hdd1split = splitinfos[0].Split('%');  //divisão final da infogeral hdd1
+                string[] hdd1split2 = splitinfos[1].Split('%'); //divisão final da infogeral hdd2
+                string[] hdd1split3 = splitinfos[2].Split('%'); //divisão final da infogeral hdd3
+
+                string[] hdd1tempsplit = splittempsfinal[0].Split('*');  //divisão final da temperatura hdd1
+                string[] hdd1tempsplit2 = splittempsfinal[1].Split('*'); //divisão final da temperatura hdd2
+                string[] hdd1tempsplit3 = splittempsfinal[2].Split('*'); //divisão final da temperatura hdd3
+
+                #region HDD1
+                string[] hdd1a = new string[9];
+
+                hdd1a[0] = hddfinalname[0].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//HDD Name
+                hdd1a[1] = hdd1split[0].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty); //DriveName
+                hdd1a[2] = hdd1split[1].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//DriveFormat
+                hdd1a[3] = hdd1split[2].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//TotalSpace
+                hdd1a[4] = hdd1split[3].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//EmptySpace
+                hdd1a[5] = hdd1tempsplit[0];//WorstTemp
+                hdd1a[6] = hdd1tempsplit[1];//ActualTemp
+                hdd1a[7] = splitpohfinal[0];//Power on Hours (POH)
+                hdd1a[8] = splitpccfinal[0];//Power Cycle Count (PCC)
+
+                for (int i = 0; i < hdd1a.Length; i++)
+                {
+                    if (i < 8)
+                        hdd1 += hdd1a[i] + "&";
+                    if (i == 8)
+                        hdd1 += hdd1a[i];
+                }
+                #endregion
+
+                #region HDD2
+                string[] hdd2a = new string[9];
+
+                hdd2a[0] = hddfinalname[1].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//HDD Name
+                hdd2a[1] = hdd1split2[0].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty); //DriveName
+                hdd2a[2] = hdd1split2[1].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//DriveFormat
+                hdd2a[3] = hdd1split2[2].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//TotalSpace
+                hdd2a[4] = hdd1split2[3].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//EmptySpace
+                hdd2a[5] = hdd1tempsplit2[0];//WorstTemp
+                hdd2a[6] = hdd1tempsplit2[1];//ActualTemp
+                hdd2a[7] = splitpohfinal[1];//Power on Hours (POH)
+                hdd2a[8] = splitpccfinal[1];//Power Cycle Count (PCC)
+
+                for (int i = 0; i < hdd2a.Length; i++)
+                {
+                    if (i < 8)
+                        hdd2 += hdd2a[i] + "&";
+                    if (i == 8)
+                        hdd2 += hdd2a[i];
+                }
+                #endregion
+
+                #region HDD3
+                string[] hdd3a = new string[9];
+
+                hdd3a[0] = hddfinalname[2].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//HDD Name
+                hdd3a[1] = hdd1split3[0].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty); //DriveName
+                hdd3a[2] = hdd1split3[1].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//DriveFormat
+                hdd3a[3] = hdd1split3[2].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//TotalSpace
+                hdd3a[4] = hdd1split3[3].Replace("\r", "").Replace("\t", "").Replace("\n", "").Replace(" ", String.Empty);//EmptySpace
+                hdd3a[5] = hdd1tempsplit3[0];//WorstTemp
+                hdd3a[6] = hdd1tempsplit3[1];//ActualTemp
+                hdd3a[7] = splitpohfinal[2];//Power on Hours (POH)
+                hdd3a[8] = splitpccfinal[2];//Power Cycle Count (PCC)
+
+                for (int i = 0; i < hdd3a.Length; i++)
+                {
+                    if (i < 8)
+                        hdd3 += hdd3a[i] + "&";
+                    if (i == 8)
+                        hdd3 += hdd3a[i];
+                }
+                #endregion
+
+                hddfinal = hdd1 + "/" + hdd2 + "/" + hdd3;
+            }
+           
+            return hddfinal;
+            #endregion
+
+            #endregion
+
+        }
+
+        #endregion
+
+        #region Ping Method's
+        static string GetPingMs()
+        {
+            Ping ping = new Ping();
+            string ms = "";
+
+            try
+            {
+                PingReply reply = ping.Send("8.8.8.8");
+                ms = reply.RoundtripTime.ToString();
+            }
+            catch(PingException)
+            {
+
+            }
+
+            return ms;
+        }
+        #endregion
+
+
     }
+
+    
 }
